@@ -60,7 +60,7 @@ class Settings {
         $this->options = get_option( 'applicationinsights_options' );
         ?>
             <div class="wrap">
-                <?php echo _e('Application Insights Settings', 'applicationinsights'); ?>           
+                <h1><?php echo _e('Application Insights Settings', 'applicationinsights'); ?></h1>
                 <form method="post" action="options.php">
             <?php
                 // This prints out all hidden setting fields
@@ -96,16 +96,21 @@ class Settings {
     }
     
     public function pageInitialization()
-    {        
+    {
         register_setting('applicationinsights_option_group', 'applicationinsights_options');
-        add_settings_section('main_section', 'Application Settings', null, 'applicationinsights-setting-admin');  
-        add_settings_field('instrumentation_key', 'Instrumentation Key', array( $this, 'instrumentationKeyCallback' ), 'applicationinsights-setting-admin', 'main_section');      
+
+        add_settings_section('main_section', 'Common Settings', null, 'applicationinsights-setting-admin');
+        add_settings_field('instrumentation_key', 'Instrumentation Key', array( $this, 'instrumentationKeyCallback' ), 'applicationinsights-setting-admin', 'main_section');
+
+        add_settings_section('track_404_section', '404 Tracking', null, 'applicationinsights-setting-admin');
+        add_settings_field('track_404', 'Track 404?', array( $this, 'track404Callback' ), 'applicationinsights-setting-admin', 'track_404_section');
+        add_settings_field('track_404_exceptions', 'Do not track 404 for these files (one per line)', array( $this, 'track404ExceptionsCallback' ), 'applicationinsights-setting-admin', 'track_404_section');
     }
 
     public function instrumentationKeyCallback()
     {
         printf(
-            '<input style="width: 450px" type="text" id="instrumentation_key" name="applicationinsights_options[instrumentation_key]" value="%s" />',
+            '<input class=\'regular-text\' type="text" id="instrumentation_key" name="applicationinsights_options[instrumentation_key]" value="%s" />',
             isset( $this->options['instrumentation_key'] ) ? esc_attr( $this->options['instrumentation_key'] ) : ''
         );
     }
@@ -147,10 +152,26 @@ class Settings {
                 delete_site_option($option);
             }
         }
-        
+
         // At last we redirect back to our options page.
         wp_redirect(add_query_arg(array('page' => 'applicationinsights-setting-admin',
             'updated' => 'true'), network_admin_url('settings.php')));
         exit;
+    }
+
+    public function track404Callback() {
+        $checked = ($this->options['track_404'] == '1')?'checked':'';
+
+        printf(
+            '<input type="checkbox" id="track_404" name="applicationinsights_options[track_404]" value="1" %s />',
+            $checked
+        );
+    }
+
+    public function track404ExceptionsCallback() {
+        printf(
+            '<textarea class=\'regular-text\' rows=\'20\' id="track_404_exceptions" name="applicationinsights_options[track_404_exceptions]">%s</textarea>',
+            $this->options['track_404_exceptions']
+        );
     }
 }

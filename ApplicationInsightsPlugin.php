@@ -7,7 +7,7 @@ Author: ApplicationInsights
 License:  MIT
  */
 
-require_once 'vendor/autoload.php';
+require_once __DIR__ . '/vendor/autoload.php';
 
 // Enables Admin configuration experience
 $mySettingsPage = new ApplicationInsights\WordPress\Settings();
@@ -19,3 +19,7 @@ add_action('wp_head', array($clientInstrumentation, 'addPrefix'));
 // Enables server-side instrumentation
 $serverInstrumentation = new ApplicationInsights\WordPress\Server_Instrumentation();
 add_action('shutdown', array($serverInstrumentation, 'endRequest'));
+
+// Activation
+register_activation_hook(__FILE__, 'ApplicationInsights\WordPress\Installation::activation');
+
