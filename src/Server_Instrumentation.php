@@ -5,7 +5,7 @@ namespace ApplicationInsights\WordPress;
  *  Does server-side instrumentation using the PHP SDK for Application Insights
  */
 class Server_Instrumentation {
-	private $_telemetryClient;
+	private $_telemetryClient = null;
 	private static $UNTRACKABLE_404;
     private $_isTrack404Enabled;
 
@@ -21,28 +21,36 @@ class Server_Instrumentation {
         } else {
             $application_insights_options = get_option("applicationinsights_options");
         } 
-        $this->_telemetryClient = new \ApplicationInsights\Telemetry_Client();
-        $this->_telemetryClient->getContext()->setInstrumentationKey($application_insights_options["instrumentation_key"]);
-        $this->_isTrack404Enabled = ($application_insights_options['track_404'] == '1');
-        $sdkVer = $this->_telemetryClient->getContext()->getInternalContext()->getSdkVersion();
-        $this->_telemetryClient->getContext()->getInternalContext()->setSdkVersion('wp_' . $sdkVer);
 
-		set_exception_handler( array( $this, 'exceptionHandler' ) );
+        // Only initialize telemetry if we have an Application Insights Key
+        if (isset($application_insights_options["instrumentation_key"]) && strlen($application_insights_options["instrumentation_key"]) > 0) {
+            $this->_telemetryClient = new \ApplicationInsights\Telemetry_Client();
+            $this->_telemetryClient->getContext()->setInstrumentationKey($application_insights_options["instrumentation_key"]);
+            $this->_isTrack404Enabled = (isset($application_insights_options['track_404'])) ? ($application_insights_options['track_404'] == '1') : false;
+            $sdkVer = $this->_telemetryClient->getContext()->getInternalContext()->getSdkVersion();
+            $this->_telemetryClient->getContext()->getInternalContext()->setSdkVersion('wp_' . $sdkVer);
+
+            // Capture Exceptions
+            set_exception_handler( array( $this, 'exceptionHandler' ) );
+        }
 	}
 
     function endRequest()
     {
-        if (is_page() || is_single() || is_category() || is_home() || is_archive() || $this->isTrackable404() )
-        {
-            $url = $_SERVER["HTTP_HOST"].$_SERVER["REQUEST_URI"];
-            $requestName = Common::getPageTitle();
-            $startTime = $_SERVER["REQUEST_TIME"];
-            $duration = floatval(timer_stop(0, 3)) * 1000;
-            $this->_telemetryClient->trackRequest($requestName, $url, $startTime, $duration, http_response_code(), !is_404());
+        // Only send telemetry is the telemetry client was created
+        if ($this->_telemetryClient != null) {
+            if (is_page() || is_single() || is_category() || is_home() || is_archive() || $this->isTrackable404() )
+            {
+                $url = $_SERVER["HTTP_HOST"].$_SERVER["REQUEST_URI"];
+                $requestName = Server_Instrumentation::getPageTitle();
+                $startTime = $_SERVER["REQUEST_TIME"];
+                $duration = floatval(timer_stop(0, 3)) * 1000;
+                $this->_telemetryClient->trackRequest($requestName, $url, $startTime, $duration, http_response_code(), !is_404());
 
-			// Flush all telemetry items
-			$this->_telemetryClient->flush();
-		}
+                // Flush all telemetry items
+                $this->_telemetryClient->flush();
+            }
+        }
 	}
 
     function exceptionHandler($exception)
@@ -66,25 +74,24 @@ class Server_Instrumentation {
 
 	function getUntrackableFiles() {
 		if ( Server_Instrumentation::$UNTRACKABLE_404 == null ) {
-			Server_Instrumentation::$UNTRACKABLE_404 = array(
-				'/sitemap.xml',
-				'/favicon.ico',
-				'/robots.txt',
-				'/apple-touch-icon.png',
-				'/apple-touch-icon-precomposed.png',
-                '/apple-touch-icon-76x76.png',
-                '/apple-touch-icon-76x76-precomposed.png',
-				'/apple-touch-icon-120x120.png',
-				'/apple-touch-icon-120x120-precomposed.png',
-                '/apple-touch-icon-152x152.png',
-                '/apple-touch-icon-152x152-precomposed.png',
-				'/browserconfig.xml',
-				'/crossdomain.xml',
-				'/labels.rdf',
-				'/trafficbasedsspsitemap.xml'
-			);
+			Server_Instrumentation::$UNTRACKABLE_404 = Common::getDefaultUntrackable404Files();
 		}
 
 		return Server_Instrumentation::$UNTRACKABLE_404;
-	}
+    }
+
+     /**
+     * Returns the current WordPress Page Title using the same rules as the client side,
+     * but it tries to "undo" the esc_html encoding.
+     * We use this because we want the reports from the "server side" to have the same names
+     * as the "client side" (or as close as possble)
+     * 
+     * @return string Page Title
+     */
+    public static function getPageTitle() {
+        $title = wp_get_document_title();
+
+        return html_entity_decode($title);
+    }
+    
 }

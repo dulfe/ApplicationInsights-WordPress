@@ -8,6 +8,7 @@ class Installation {
     public static function activation() {
         
         $defaults = [
+            'track_404' => false,
             'track_404_exceptions' => implode("\n", 
                 Common::getDefaultUntrackable404Files())
         ];
